@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minimal-mihomo-controller"
+version = "0.1.0"
+description = "Immutable-profile, transactional systemd controller for Mihomo"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0,<7"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+gui = ["PySide6-Essentials>=6.6,<7"]
+
+[project.scripts]
+mmctl = "minimal_mihomo.cli:main"
+mmgui = "minimal_mihomo.app:main"
+
+[tool.setuptools.packages.find]
+include = ["minimal_mihomo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
