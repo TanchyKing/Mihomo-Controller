@@ -61,7 +61,8 @@ mmctl settings set secure_dns true
 
 Mihomo IPv6 false does **not** disable Ubuntu IPv6. Inspect both external families;
 this controller does not claim all traffic is proxied or infer domestic routing
-intent from geolocation. Source DNS and rules are retained.
+intent from geolocation. Source DNS behavior is retained where possible, but resolver
+upstreams are replaced with encrypted DNS when `secure_dns` is enabled. Rules are retained.
 
 Subscriptions support standard Clash/Mihomo YAML only:
 
@@ -76,6 +77,25 @@ Avoid putting sensitive URLs in shell history (e.g. enter them with `read -rs` i
 a temporary variable). CLI arguments may be visible to other local processes.
 Refresh validates but does not activate a new snapshot; use the profile explicitly.
 Snapshots remain retained, with no automatic pruning in v1.
+
+## Browser DNS troubleshooting
+
+If GitHub works but Chrome times out on Google or ChatGPT, while `curl` can reach
+those sites, the proxy transport may be healthy and Chrome's resolver path may be
+the problem. First restore `chrome://flags/#enable-quic` to **Default**. Then open
+`chrome://settings/security`, enable **Use secure DNS**, and select **Cloudflare
+(1.1.1.1)** instead of the current service provider. If Chrome asks for a custom
+resolver URL, use:
+
+```text
+https://cloudflare-dns.com/dns-query
+```
+
+This browser-level setting continues working when the controller is off and avoids
+changing DNS for every Wi-Fi or hotspot connection. When TUN is active, the encrypted
+DNS connection follows the active Mihomo route. A DNS-leak result and an HTTPS exit-IP
+result measure different paths: Global mode controls the latter but does not replace
+a browser's independently selected encrypted resolver.
 
 ## Recovery and coexistence
 
