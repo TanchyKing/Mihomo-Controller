@@ -26,9 +26,9 @@ Clash Verge** launcher provides offline recovery. See [RECOVERY.md](RECOVERY.md)
 ## Use
 
 ```sh
-mmctl profile add-yaml /absolute/path/to/gcp-oregon.yaml --name 'GCP Oregon'
+mmctl profile add-yaml /absolute/path/to/private-profile.yaml --name 'Private profile'
 mmctl profile list
-mmctl settings set route_exclude_address '["34.105.112.255/32"]'
+mmctl settings set route_exclude_address '["NODE_SERVER_IP/32"]'
 mmctl settings set interface wlp0s20f3
 # Exit Clash Verge and stop its core through its normal controls first.
 mmctl profile use PROFILE_ID --health-url https://www.gstatic.com/generate_204
@@ -137,8 +137,8 @@ python3 -m venv .venv
 
 See [architecture.md](architecture.md) and [ACCEPTANCE.md](ACCEPTANCE.md). Unit tests
 use fake systemd/API boundaries; they do not change the host network. Live acceptance
-must demonstrate single owned PID, TUN API=true, Mihomo interface, Oregon exit for
-the GCP profile, domestic rule routing, A→B→A source hashes, service restart and
+must demonstrate single owned PID, TUN API=true, Mihomo interface, expected exit for
+the private profile, domestic rule routing, A→B→A source hashes, service restart and
 boot persistence before considering the controller verified for daily use. The GUI
 was added early at the user’s request to make this testing easier.
 

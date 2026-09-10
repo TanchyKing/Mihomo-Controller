@@ -386,7 +386,7 @@ class Window(QMainWindow):
         self.perform(lambda c: c.monitor_or_stop(30), self.watchdog_result, quiet=True)
 
     def watchdog_result(self, result):
-        if not result.get('stopped'):
+        if not result.get('unhealthy'):
             self.watchdog_stopped = False
             return
         if self.watchdog_stopped:
@@ -395,11 +395,12 @@ class Window(QMainWindow):
         profile = result.get('profile', 'current profile')
         node = result.get('node') or profile
         seconds = result.get('timeout', 30)
-        message = (f'Current node “{node}” (profile “{profile}”) could not connect for {seconds} seconds.\n\n'
-                   'Proxy has been turned OFF automatically so direct networking can recover.')
+        message = (f'Current node “{node}” (profile “{profile}”) failed two independent '
+                   f'connectivity checks (up to {seconds} seconds each).\n\n'
+                   'The proxy remains ON. Check the node or switch profiles if the outage persists.')
         self.banner.setText(message)
         self.banner.setStyleSheet('padding: 12px; background: #8c302e; color: white; border-radius: 6px;')
-        QMessageBox.warning(self, 'Proxy node unavailable — turned off', message)
+        QMessageBox.warning(self, 'Proxy connectivity warning', message)
 
     def group_changed(self, name):
         item = self.group_data.get(name, {})

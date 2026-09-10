@@ -76,6 +76,9 @@ def build(data: bytes, settings, source_dir: Path | None = None) -> dict:
         dns = result.get('dns') if isinstance(result.get('dns'), dict) else {}
         dns.update({
             'enable': True,
+            # systemd-resolved is routed to this listener while the TUN service
+            # is active (see scripts/resolved_dns.py).
+            'listen': '127.0.0.1:1053',
             'respect-rules': True,
             'default-nameserver': ['tls://1.1.1.1', 'tls://8.8.8.8'],
             'nameserver': ['https://1.1.1.1/dns-query#GLOBAL',

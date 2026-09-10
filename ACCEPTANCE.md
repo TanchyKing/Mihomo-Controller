@@ -19,17 +19,10 @@
   API token, and stopped that exact subprocess. This was not a TUN routing test.
 - Rendered systemd unit passed `systemd-analyze verify` without warnings.
 - Shell syntax, Python compilation, and Git whitespace checks passed.
-- Both existing GCP profiles passed `verge-mihomo -t` with generated TUN=true
+- Existing private profiles passed `verge-mihomo -t` with generated TUN=true
   candidates. Validation used temporary private runtime files and read-only links
-  to existing geodata assets. Source hashes were unchanged:
-
-| Source file in Verge's `profiles/` directory | SHA-256 |
-| --- | --- |
-| `LeW2jGWmJ73G.yaml` | `b23105705b98e74aa9c66aa9bcbf5e13449a5f851f76bbbc49515f61a4e81d16` |
-| `LO8LlMF28cD6.yaml` | `79cc63c389c5d309accff0fc07d9a48488b335a93facc7cc91e03290bca9686a` |
-
-Registered metadata only: GCP ID `a349fdb677d9`, second GCP profile ID
-`c2485836cb3d`. No active profile or last-known-good runtime has been claimed.
+  to existing geodata assets. Private filenames, hashes, IDs and node addresses are
+  intentionally not recorded in the repository.
 
 ## Pending live gate
 
@@ -46,13 +39,13 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Then exit Clash Verge through its normal controls and confirm its core has stopped.
 Do not indiscriminately kill processes. `mmctl diagnostics` shows remaining PIDs.
-For these GCP test profiles, apply explicit controller settings and run:
+For these private test profiles, apply explicit controller settings and run:
 
 ```sh
 mmctl settings set tun true
 mmctl settings set interface wlp0s20f3
-mmctl settings set route_exclude_address '["34.105.112.255/32"]'
-mmctl profile use a349fdb677d9 --health-url https://www.gstatic.com/generate_204
+mmctl settings set route_exclude_address '["NODE_SERVER_IP/32"]'
+mmctl profile use PRIVATE_PROFILE_A --health-url https://www.gstatic.com/generate_204
 mmctl verify
 systemctl show minimal-mihomo.service -p ActiveState -p MainPID
 ip -br addr
@@ -60,16 +53,16 @@ mmctl groups
 mmctl external-ip
 ```
 
-Check that the selected group node is GCP, TUN is enabled both in the API and OS,
-and IPv4 exits via 34.105.112.255 / Oregon / US. An external-IP response alone does
+Check that the selected group node is the expected private node, TUN is enabled both
+in the API and OS, and IPv4 exits via the expected region. An external-IP response alone does
 not establish that domestic destinations follow DIRECT rules: check a domestic
 request and its matching rule/outbound in the core's connection/log information.
 
 Then test profile switching and restart:
 
 ```sh
-mmctl profile use c2485836cb3d
-mmctl profile use a349fdb677d9
+mmctl profile use PRIVATE_PROFILE_B
+mmctl profile use PRIVATE_PROFILE_A
 mmctl restart
 mmctl verify
 ```

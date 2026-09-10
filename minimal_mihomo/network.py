@@ -18,9 +18,7 @@ def processes(owned_pid=0):
         try:
             name = path.read_text().strip()
             pid = int(path.parent.name)
-            if pid != owned_pid and name in ('mihomo', 'verge-mihomo'):
-                found.append({'pid': pid, 'name': name})
-            elif pid != owned_pid and name.startswith('clash-verge'):
+            if pid != owned_pid and name in ('mihomo', 'verge-mihomo', 'clash'):
                 found.append({'pid': pid, 'name': name})
         except (OSError, ValueError):
             continue

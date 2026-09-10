@@ -7,3 +7,16 @@ build/
 dist/
 /private-subscriptions.txt
 /private-subscriptions.md
+
+# Local proxy profiles, cloud-node details, credentials, and generated runtime.
+**/*[gG][cC][pP]*
+**/*[oO][rR][eE][gG][oO][nN]*
+**/credentials*.json
+**/*service-account*.json
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+/private/
+/profiles/
+/runtime/

@@ -23,6 +23,7 @@ if not data.is_relative_to(Path(account.pw_dir).resolve()) or any(c in str(data)
 binary = next((p for p in ('/usr/bin/mihomo', '/usr/bin/verge-mihomo') if Path(p).is_file()), None)
 if not binary:
     raise SystemExit('Mihomo binary missing.')
+dns_helper = Path('/usr/libexec/minimal-mihomo-resolved-dns')
 unit = f'''[Unit]
 Description=Minimal Mihomo Controller core
 After=network-online.target
@@ -34,6 +35,8 @@ Type=simple
 User={a.user}
 Group={account.pw_gid}
 ExecStart={binary} -d "{data}/core" -f "{data}/runtime/runtime.yaml"
+ExecStartPost=+{dns_helper} apply "{data}/runtime/runtime.yaml"
+ExecStopPost=+{dns_helper} restore
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=20
@@ -62,6 +65,10 @@ WantedBy=multi-user.target
 if a.print_unit:
     print(unit)
     raise SystemExit(0)
+helper_source = Path(__file__).with_name('resolved_dns.py')
+dns_helper.parent.mkdir(parents=True, exist_ok=True)
+dns_helper.write_bytes(helper_source.read_bytes())
+dns_helper.chmod(0o755)
 Path('/etc/systemd/system/minimal-mihomo.service').write_text(unit)
 rule = f'''// Installed by Minimal Mihomo Controller. No access to other units.
 polkit.addRule(function(action, subject) {{

@@ -111,7 +111,7 @@ class Controller:
             raise ControllerError(f'Current proxy node cannot connect within {timeout} seconds.')
 
     def monitor_or_stop(self, timeout=30):
-        """Stop our TUN after a sustained outage so direct networking recovers."""
+        """Report an outage without taking down the machine-wide proxy."""
         if self.service.status().get('ActiveState') != 'active':
             return {'active': False, 'stopped': False}
         config = self.config()
@@ -132,13 +132,17 @@ class Controller:
                         break
         except ControllerError:
             pass
-        try:
-            self._health('https://www.gstatic.com/generate_204', config, timeout)
-            return {'active': True, 'stopped': False}
-        except ControllerError:
-            self.service.action('stop')
-            return {'active': False, 'stopped': True, 'profile': profile or 'current profile',
-                    'node': node, 'timeout': timeout}
+        failed = []
+        for url in ('https://www.gstatic.com/generate_204',
+                    'https://cp.cloudflare.com/generate_204'):
+            try:
+                self._health(url, config, timeout)
+                return {'active': True, 'stopped': False, 'unhealthy': False}
+            except ControllerError:
+                failed.append(url)
+        return {'active': True, 'stopped': False, 'unhealthy': True,
+                'profile': profile or 'current profile', 'node': node,
+                'timeout': timeout, 'failed_targets': failed}
 
     def recover(self):
         if not self.paths.transaction.exists():

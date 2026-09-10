@@ -6,7 +6,7 @@ import pytest
 from minimal_mihomo.controller import Controller
 from minimal_mihomo.mihomo_api import API
 from minimal_mihomo.models import Settings
-from minimal_mihomo.network import preflight
+from minimal_mihomo.network import preflight, processes
 from minimal_mihomo.profile_store import ProfileStore
 from minimal_mihomo.redaction import redact, collect_secrets
 from minimal_mihomo.runtime_builder import build, encode, parse
@@ -32,6 +32,7 @@ def test_source_immutability_and_tun_override(tmp_path):
     assert result['mixed-port'] == 17890
     assert result['external-controller'] == '127.0.0.1:19099'
     assert result['dns']['respect-rules'] is True
+    assert result['dns']['listen'] == '127.0.0.1:1053'
     assert all(server.startswith(('https://', 'tls://'))
                for key in ('nameserver', 'default-nameserver', 'proxy-server-nameserver', 'direct-nameserver')
                for server in result['dns'][key])
@@ -294,8 +295,8 @@ def test_rename_profile_only_changes_metadata(paths, tmp_path):
     source.write_bytes(SOURCE)
     store = ProfileStore(paths)
     profile_id = store.add_yaml(source)
-    store.rename(profile_id, 'Oregon')
-    assert store.get(profile_id)['name'] == 'Oregon'
+    store.rename(profile_id, 'Private node')
+    assert store.get(profile_id)['name'] == 'Private node'
     assert source.read_bytes() == SOURCE
 
 
@@ -305,17 +306,45 @@ def test_latency_all_keeps_failures():
     assert api.latencies(['good', 'bad', 'good']) == {'good': 42, 'bad': None}
 
 
-def test_monitor_stops_service_after_proxy_timeout(controller, tmp_path, monkeypatch):
+def test_monitor_warns_but_keeps_service_after_two_proxy_timeouts(controller, tmp_path, monkeypatch):
     profile_id, _ = add(controller, tmp_path, 'offline-node')
     controller.apply(profile_id)
     def fail(*_args, **_kwargs):
         raise ControllerError('Current proxy node cannot connect within 30 seconds.')
     monkeypatch.setattr(controller, '_health', fail)
     result = controller.monitor_or_stop(30)
-    assert result == {'active': False, 'stopped': True, 'profile': 'offline-node',
-                      'node': None, 'timeout': 30}
-    assert not controller.service.active
+    assert result['active'] is True
+    assert result['stopped'] is False
+    assert result['unhealthy'] is True
+    assert len(result['failed_targets']) == 2
+    assert controller.service.active
+
+
+def test_monitor_accepts_second_independent_target(controller, tmp_path, monkeypatch):
+    profile_id, _ = add(controller, tmp_path, 'temporary-gstatic-failure')
+    controller.apply(profile_id)
+    calls = []
+    def health(url, *_args, **_kwargs):
+        calls.append(url)
+        if 'gstatic' in url:
+            raise ControllerError('temporary failure')
+    monkeypatch.setattr(controller, '_health', health)
+    assert controller.monitor_or_stop(30) == {
+        'active': True, 'stopped': False, 'unhealthy': False}
+    assert len(calls) == 2
 
 
 def test_monitor_does_nothing_when_service_is_stopped(controller):
     assert controller.monitor_or_stop(30) == {'active': False, 'stopped': False}
+
+
+def test_process_detection_ignores_clash_verge_helper(monkeypatch, tmp_path):
+    proc = tmp_path / 'proc'
+    for pid, name in ((101, 'clash-verge-service'), (102, 'verge-mihomo')):
+        directory = proc / str(pid)
+        directory.mkdir(parents=True)
+        (directory / 'comm').write_text(name)
+    real_path = Path
+    monkeypatch.setattr('minimal_mihomo.network.Path',
+                        lambda value: proc if value == '/proc' else real_path(value))
+    assert processes() == [{'pid': 102, 'name': 'verge-mihomo'}]
