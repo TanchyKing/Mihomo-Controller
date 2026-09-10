@@ -83,7 +83,16 @@ class Controller:
             raise ControllerError('Apply interrupted or failed. ' + recovery) from None
 
     def _verify(self, config):
-        self.api_factory(config).wait(config)
+        try:
+            self.api_factory(config).wait(config)
+        except ControllerError:
+            state = self.service.status()
+            if state.get('ActiveState') == 'active':
+                try:
+                    self._health('https://www.gstatic.com/generate_204', config, 5)
+                except ControllerError:
+                    raise ControllerError('Current proxy node/configuration is unreachable; Mihomo API also did not respond.') from None
+            raise
         state = self.service.status()
         if state.get('ActiveState') != 'active' or int(state.get('MainPID', 0)) <= 0:
             raise ControllerError('Owned systemd service is not active after API verification.')
@@ -91,15 +100,45 @@ class Controller:
             raise ControllerError('API claims TUN is enabled, but the Mihomo interface is absent.')
 
     @staticmethod
-    def _health(url, config):
+    def _health(url, config, timeout=15):
         import subprocess
         if not url.startswith('https://'):
             raise ControllerError('Health URL must use HTTPS.')
         result = subprocess.run(['curl', '--silent', '--fail', '--noproxy', '', '--proxy',
-                                 f"http://127.0.0.1:{config['mixed-port']}", '--max-time', '15', url],
-                                capture_output=True, timeout=20)
+                                 f"http://127.0.0.1:{config['mixed-port']}", '--max-time', str(timeout), url],
+                                capture_output=True, timeout=timeout + 5)
         if result.returncode:
-            raise ControllerError('Optional proxy health check failed.')
+            raise ControllerError(f'Current proxy node cannot connect within {timeout} seconds.')
+
+    def monitor_or_stop(self, timeout=30):
+        """Stop our TUN after a sustained outage so direct networking recovers."""
+        if self.service.status().get('ActiveState') != 'active':
+            return {'active': False, 'stopped': False}
+        config = self.config()
+        state = read_json(self.paths.state, {})
+        profile_id = state.get('profile_id')
+        try:
+            profile = self.profiles.get(profile_id).get('name') if profile_id else None
+        except ControllerError:
+            profile = None
+        node = None
+        try:
+            groups = self.api_factory(config).groups()
+            if isinstance(groups, dict):
+                for group_name in ('PROXY', 'GLOBAL'):
+                    selected = groups.get(group_name, {}).get('now')
+                    if selected and selected not in ('DIRECT', 'REJECT'):
+                        node = selected
+                        break
+        except ControllerError:
+            pass
+        try:
+            self._health('https://www.gstatic.com/generate_204', config, timeout)
+            return {'active': True, 'stopped': False}
+        except ControllerError:
+            self.service.action('stop')
+            return {'active': False, 'stopped': True, 'profile': profile or 'current profile',
+                    'node': node, 'timeout': timeout}
 
     def recover(self):
         if not self.paths.transaction.exists():

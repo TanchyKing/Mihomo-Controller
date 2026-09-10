@@ -155,6 +155,13 @@ Service, group/node, TUN/mode, logs, external-IP and diagnostic controls use the
 same backend and process lock.
 Operations run in a worker thread so the window remains responsive.
 
+While the GUI is running and this controller's service is active, it performs a
+proxy health check in the background. If the current profile cannot complete the
+HTTPS check within 30 seconds, the controller stops its own service, removes its
+TUN route, and displays a warning that the current node is unavailable. This is a
+fail-open availability safeguard: direct networking may expose the physical exit
+IP after the proxy is turned off. It never starts or stops Clash Verge.
+
 Save desired settings records them without activating a runtime; Apply selected
 profile saves the editor settings and applies them transactionally. Start/restart
 use the already applied runtime. Closing the window leaves the service running.

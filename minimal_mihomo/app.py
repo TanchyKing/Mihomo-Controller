@@ -51,6 +51,8 @@ class Window(QMainWindow):
         self.group_data = {}
         self.inputs = {}
         self.loaded_settings = False
+        self.runtime_active = False
+        self.watchdog_stopped = False
         self.setWindowTitle('Minimal Mihomo Controller')
         self.resize(1050, 760)
         self.setMinimumSize(860, 620)
@@ -96,8 +98,12 @@ class Window(QMainWindow):
         self.timer = QTimer(self)
         self.timer.setInterval(5000)
         self.timer.timeout.connect(self.refresh)
+        self.watchdog = QTimer(self)
+        self.watchdog.setInterval(10000)
+        self.watchdog.timeout.connect(self.check_proxy_health)
         if auto_refresh:
             self.timer.start()
+            self.watchdog.start()
             self.refresh()
 
     @staticmethod
@@ -126,6 +132,7 @@ class Window(QMainWindow):
         note.setWordWrap(True)
         layout.addWidget(note)
         self.health = QCheckBox('Require an HTTPS health check through the mixed proxy when applying')
+        self.health.setChecked(True)
         layout.addWidget(self.health)
         controls = QHBoxLayout()
         self.proxy_toggle = QPushButton('Proxy is OFF')
@@ -373,6 +380,27 @@ class Window(QMainWindow):
             return external_ip(config)
         self.perform(operation, self.show_external)
 
+    def check_proxy_health(self):
+        if not self.runtime_active or self.job is not None:
+            return
+        self.perform(lambda c: c.monitor_or_stop(30), self.watchdog_result, quiet=True)
+
+    def watchdog_result(self, result):
+        if not result.get('stopped'):
+            self.watchdog_stopped = False
+            return
+        if self.watchdog_stopped:
+            return
+        self.watchdog_stopped = True
+        profile = result.get('profile', 'current profile')
+        node = result.get('node') or profile
+        seconds = result.get('timeout', 30)
+        message = (f'Current node “{node}” (profile “{profile}”) could not connect for {seconds} seconds.\n\n'
+                   'Proxy has been turned OFF automatically so direct networking can recover.')
+        self.banner.setText(message)
+        self.banner.setStyleSheet('padding: 12px; background: #8c302e; color: white; border-radius: 6px;')
+        QMessageBox.warning(self, 'Proxy node unavailable — turned off', message)
+
     def group_changed(self, name):
         item = self.group_data.get(name, {})
         self.nodes.clear()
@@ -466,6 +494,7 @@ class Window(QMainWindow):
         r = data['report']
         state = r['service'].get('ActiveState', 'unknown')
         active = state == 'active'
+        self.runtime_active = active
         self.proxy_toggle.blockSignals(True)
         self.proxy_toggle.setChecked(active)
         self.proxy_toggle.setText('Proxy is ON' if active else 'Proxy is OFF')

@@ -303,3 +303,19 @@ def test_latency_all_keeps_failures():
     api = API(build(SOURCE, Settings()))
     api.latency = lambda node: {'delay': 42} if node == 'good' else (_ for _ in ()).throw(ControllerError('fail'))
     assert api.latencies(['good', 'bad', 'good']) == {'good': 42, 'bad': None}
+
+
+def test_monitor_stops_service_after_proxy_timeout(controller, tmp_path, monkeypatch):
+    profile_id, _ = add(controller, tmp_path, 'offline-node')
+    controller.apply(profile_id)
+    def fail(*_args, **_kwargs):
+        raise ControllerError('Current proxy node cannot connect within 30 seconds.')
+    monkeypatch.setattr(controller, '_health', fail)
+    result = controller.monitor_or_stop(30)
+    assert result == {'active': False, 'stopped': True, 'profile': 'offline-node',
+                      'node': None, 'timeout': 30}
+    assert not controller.service.active
+
+
+def test_monitor_does_nothing_when_service_is_stopped(controller):
+    assert controller.monitor_or_stop(30) == {'active': False, 'stopped': False}
