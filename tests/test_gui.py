@@ -68,6 +68,22 @@ def test_mode_selector_exposes_runtime_modes(window):
     ]
 
 
+def test_rule_view_defaults_to_proxy_group(window):
+    window.render(snapshot(runtime_mode='rule', proxy_groups={
+        'GLOBAL': {'all': ['DIRECT', 'GCP_TUN', 'PROXY'], 'now': 'DIRECT'},
+        'PROXY': {'all': ['GCP_TUN', 'DIRECT'], 'now': 'GCP_TUN'},
+    }))
+    assert window.groups.currentText() == 'PROXY'
+    assert window.current_node.text() == 'Current: GCP_TUN'
+
+
+def test_profile_click_only_selects_without_applying(window):
+    calls = []
+    window.apply = lambda: calls.append('apply')
+    window.profile_clicked(None)
+    assert calls == []
+
+
 def test_worker_errors_do_not_expose_raw_exception(app, tmp_path):
     paths = Paths(tmp_path / 'data', tmp_path / 'config')
     def operation(_):

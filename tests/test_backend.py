@@ -244,6 +244,20 @@ def test_missing_group_is_failure():
         api.verify(build(SOURCE, Settings()))
 
 
+def test_apply_syncs_global_group_to_selected_proxy(controller, tmp_path):
+    profile_id, _ = add(controller, tmp_path, 'proxy-default')
+    api = Mock()
+    api.groups.return_value = {
+        'GLOBAL': {'type': 'Selector', 'now': 'DIRECT',
+                   'all': ['DIRECT', 'REJECT', 'GCP_TUN', 'PROXY']},
+        'PROXY': {'type': 'Selector', 'now': 'GCP_TUN',
+                  'all': ['GCP_TUN', 'DIRECT']},
+    }
+    controller.api_factory = lambda _config: api
+    controller.apply(profile_id)
+    api.select.assert_called_once_with('GLOBAL', 'GCP_TUN')
+
+
 def test_redaction():
     config = {'proxies': [{'password': 'secret with spaces'}], 'secret': 'bearer-token'}
     text = 'proxy failed: secret with spaces\nAuthorization: Bearer bearer-token\nhttps://u:pass@example.com/pathsecret?token=querysecret\npassword: otherpassword'

@@ -85,7 +85,19 @@ class Controller:
 
     def _verify(self, config):
         try:
-            self.api_factory(config).wait(config)
+            api = self.api_factory(config)
+            api.wait(config)
+            groups = api.groups()
+            if config['mode'] in ('rule', 'global') and isinstance(groups, dict):
+                global_group = groups.get('GLOBAL', {})
+                proxy_group = groups.get('PROXY', {})
+                choices = global_group.get('all', [])
+                selected = proxy_group.get('now')
+                target = selected if selected not in (None, 'DIRECT', 'REJECT') and selected in choices else None
+                if target is None and 'PROXY' in choices:
+                    target = 'PROXY'
+                if target and global_group.get('now') != target:
+                    api.select('GLOBAL', target)
         except ControllerError:
             state = self.service.status()
             if state.get('ActiveState') == 'active':

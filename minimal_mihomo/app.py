@@ -315,7 +315,7 @@ class Window(QMainWindow):
         menu.exec(self.profiles.mapToGlobal(position))
 
     def profile_clicked(self, _item):
-        self.apply()
+        self.statusBar().showMessage('Profile selected. Click Apply / reconnect to activate it.')
 
     def refresh_subscription(self):
         profile_id = self.selected_id()
@@ -544,6 +544,8 @@ class Window(QMainWindow):
         self.groups.addItems(list(self.group_data))
         if group in self.group_data:
             self.groups.setCurrentText(group)
+        elif 'PROXY' in self.group_data:
+            self.groups.setCurrentText('PROXY')
         self.groups.blockSignals(False)
         self.group_changed(self.groups.currentText())
         if group == self.groups.currentText() and node in self.group_data.get(group, {}).get('all', []):

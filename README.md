@@ -145,13 +145,19 @@ API behavior follows the [official Mihomo API documentation](https://wiki.metacu
 ## GUI
 
 Run `mmgui`. Add YAML or subscriptions from the left panel; subscription URL entry
-is masked. Clicking a profile applies it, and right-clicking offers apply, rename,
-settings, duplicate, refresh, and remove actions. The Overview tab has an ON/OFF
+is masked. Clicking a profile only selects it; use Apply / reconnect to activate it.
+Right-clicking offers apply, rename, settings, duplicate, refresh, and remove actions.
+The Overview tab has an ON/OFF
 proxy switch and prominent Rule/Global/Direct modes. The Proxies tab can test one
 node or every available node. The IP check compares direct and forced-proxy routes.
 Service, group/node, TUN/mode, logs, external-IP and diagnostic controls use the
 same backend and process lock.
 Operations run in a worker thread so the window remains responsive.
+
+After applying a Rule or Global profile, the controller also aligns Mihomo's
+special `GLOBAL` selector with the concrete node currently selected by `PROXY`.
+This prevents a stale cached node name from falling back to `DIRECT`; the Proxies
+tab defaults to showing the `PROXY` group in Rule mode.
 
 While the GUI is running and this controller's service is active, it checks two
 independent HTTPS targets in the background. Two consecutive rounds in which both
