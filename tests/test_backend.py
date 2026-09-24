@@ -34,9 +34,11 @@ def test_source_immutability_and_tun_override(tmp_path):
     assert result['dns']['respect-rules'] is True
     assert result['dns']['listen'] == '127.0.0.1:1053'
     assert all(server.startswith(('https://', 'tls://'))
-               for key in ('nameserver', 'default-nameserver', 'proxy-server-nameserver', 'direct-nameserver')
+               for key in ('nameserver', 'proxy-server-nameserver', 'direct-nameserver')
                for server in result['dns'][key])
-    assert '223.5.5.5' not in str(result['dns'])
+    assert result['dns']['default-nameserver'] == ['223.5.5.5', '119.29.29.29']
+    assert result['dns']['direct-nameserver'] == [
+        'https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query']
     assert all(server.endswith('#GLOBAL') for server in result['dns']['nameserver'])
 
 

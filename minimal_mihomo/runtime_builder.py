@@ -107,11 +107,14 @@ def build(data: bytes, settings, source_dir: Path | None = None) -> dict:
             # is active (see scripts/resolved_dns.py).
             'listen': '127.0.0.1:1053',
             'respect-rules': True,
-            'default-nameserver': ['tls://1.1.1.1', 'tls://8.8.8.8'],
+            # Bootstrap-only resolvers must be literal IPs. These are reachable
+            # on mainland networks where Google/Cloudflare can time out.
+            'default-nameserver': ['223.5.5.5', '119.29.29.29'],
             'nameserver': ['https://1.1.1.1/dns-query#GLOBAL',
                            'https://8.8.8.8/dns-query#GLOBAL'],
             'proxy-server-nameserver': ['tls://1.1.1.1', 'tls://8.8.8.8'],
-            'direct-nameserver': ['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'],
+            'direct-nameserver': ['https://dns.alidns.com/dns-query',
+                                  'https://doh.pub/dns-query'],
         })
         result['dns'] = dns
     result.pop('interface-name', None)

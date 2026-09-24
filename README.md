@@ -65,7 +65,9 @@ mmctl settings set secure_dns true
 Mihomo IPv6 false does **not** disable Ubuntu IPv6. Inspect both external families;
 this controller does not claim all traffic is proxied or infer domestic routing
 intent from geolocation. Source DNS behavior is retained where possible, but resolver
-upstreams are replaced with encrypted DNS when `secure_dns` is enabled. Rules are retained.
+upstreams are replaced with encrypted DNS when `secure_dns` is enabled. Rule-routed
+DIRECT lookups use AliDNS and DNSPod DoH, with mainland-reachable bootstrap resolvers;
+proxied lookups retain independent global DoH upstreams. Rules are retained.
 
 Subscriptions support standard Clash/Mihomo YAML only:
 
