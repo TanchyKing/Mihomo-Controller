@@ -37,7 +37,8 @@ def parser():
     setting = settings.add_parser('set')
     setting.add_argument('key')
     setting.add_argument('value', help='JSON value, or plain string. Changes apply on next profile use.')
-    for name in ('start', 'stop', 'restart', 'status', 'verify', 'rollback', 'recover', 'groups', 'external-ip', 'diagnostics'):
+    for name in ('start', 'stop', 'restart', 'status', 'verify', 'rollback', 'recover',
+                 'groups', 'rules', 'external-ip', 'diagnostics'):
         commands.add_parser(name)
     node = commands.add_parser('select')
     node.add_argument('group')
@@ -97,11 +98,13 @@ def run(args, controller):
         return external_ip()
     elif args.command == 'logs':
         return safe_logs(controller, max(1, min(args.lines, 1000)))
-    elif args.command in ('groups', 'select', 'latency', 'verify'):
+    elif args.command in ('groups', 'rules', 'select', 'latency', 'verify'):
         config = controller.config()
         api = API(config)
         if args.command == 'groups':
             return api.groups()
+        if args.command == 'rules':
+            return api.rule_activity()
         if args.command == 'select':
             api.select(args.group, args.node)
         elif args.command == 'latency':

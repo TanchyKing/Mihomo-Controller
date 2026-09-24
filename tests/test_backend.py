@@ -45,6 +45,25 @@ def test_secure_dns_can_preserve_source_when_disabled():
     assert result['dns'] == parse(SOURCE)['dns']
 
 
+def test_literal_proxy_endpoints_are_excluded_from_tun_route():
+    source = SOURCE + b'''proxies:
+  - {name: ipv4, type: ss, server: 34.105.112.255, port: 443}
+  - {name: ipv6, type: ss, server: "2001:db8::7", port: 443}
+  - {name: hostname, type: ss, server: proxy.example.com, port: 443}
+'''
+    result = build(source, Settings(route_exclude_address=['10.0.0.0/8']))
+    assert result['tun']['route-exclude-address'] == [
+        '10.0.0.0/8', '34.105.112.255/32', '2001:db8::7/128']
+
+
+def test_existing_supernet_avoids_duplicate_proxy_endpoint_exclusion():
+    source = SOURCE + b'''proxies:
+  - {name: ipv4, type: ss, server: 34.105.112.255, port: 443}
+'''
+    result = build(source, Settings(route_exclude_address=['34.105.112.0/24']))
+    assert result['tun']['route-exclude-address'] == ['34.105.112.0/24']
+
+
 def test_listeners_and_source_port_are_isolated():
     result = build(SOURCE + b'port: 7890\nexternal-controller-unix: /tmp/core.sock\nlisteners: [{name: other}]\n', Settings())
     assert result['port'] == 0
@@ -306,18 +325,21 @@ def test_latency_all_keeps_failures():
     assert api.latencies(['good', 'bad', 'good']) == {'good': 42, 'bad': None}
 
 
-def test_monitor_warns_but_keeps_service_after_two_proxy_timeouts(controller, tmp_path, monkeypatch):
+def test_monitor_stops_service_after_two_consecutive_full_failures(controller, tmp_path, monkeypatch):
     profile_id, _ = add(controller, tmp_path, 'offline-node')
     controller.apply(profile_id)
     def fail(*_args, **_kwargs):
         raise ControllerError('Current proxy node cannot connect within 30 seconds.')
     monkeypatch.setattr(controller, '_health', fail)
-    result = controller.monitor_or_stop(30)
-    assert result['active'] is True
-    assert result['stopped'] is False
-    assert result['unhealthy'] is True
-    assert len(result['failed_targets']) == 2
+    first = controller.monitor_or_stop(30)
+    assert first['active'] is True and first['stopped'] is False
+    assert first['unhealthy'] is True and first['failure_count'] == 1
     assert controller.service.active
+    second = controller.monitor_or_stop(30)
+    assert second['active'] is False and second['stopped'] is True
+    assert second['failure_count'] == 2
+    assert not controller.service.active
+    assert not controller.paths.health.exists()
 
 
 def test_monitor_accepts_second_independent_target(controller, tmp_path, monkeypatch):
@@ -332,10 +354,27 @@ def test_monitor_accepts_second_independent_target(controller, tmp_path, monkeyp
     assert controller.monitor_or_stop(30) == {
         'active': True, 'stopped': False, 'unhealthy': False}
     assert len(calls) == 2
+    assert not controller.paths.health.exists()
 
 
 def test_monitor_does_nothing_when_service_is_stopped(controller):
+    write_json(controller.paths.health, {'failures': 1})
     assert controller.monitor_or_stop(30) == {'active': False, 'stopped': False}
+    assert not controller.paths.health.exists()
+
+
+def test_rule_activity_summarizes_targets_without_rule_payloads():
+    api = API(build(SOURCE, Settings()))
+    api.request = lambda _path: {'rules': [
+        {'index': 0, 'type': 'DomainSuffix', 'payload': 'private.example', 'proxy': 'DIRECT',
+         'extra': {'hitCount': 4, 'hitAt': '2026-09-23T12:00:00Z'}},
+        {'index': 1, 'type': 'Match', 'payload': '', 'proxy': 'PROXY',
+         'extra': {'hitCount': 2, 'hitAt': '2026-09-23T12:01:00Z'}},
+    ]}
+    result = api.rule_activity()
+    assert result['hits_by_target'] == {'DIRECT': 4, 'PROXY': 2}
+    assert result['rules_with_hits'] == 2
+    assert 'payload' not in str(result)
 
 
 def test_process_detection_ignores_clash_verge_helper(monkeypatch, tmp_path):

@@ -35,6 +35,7 @@ mmctl profile use PROFILE_ID --health-url https://www.gstatic.com/generate_204
 mmctl status
 mmctl verify
 mmctl groups
+mmctl rules
 mmctl select 'GROUP NAME' 'NODE NAME'
 mmctl latency 'NODE NAME'
 mmctl external-ip
@@ -45,7 +46,9 @@ mmctl start
 mmctl restart
 ```
 
-The example exclusion is specific to that profile's proxy endpoint, not a default.
+Literal IPv4/IPv6 proxy endpoints are automatically added to the generated TUN
+route exclusions so the proxy transport stays on the physical network across Wi-Fi
+changes. Manual exclusions remain available for provider-managed or hostname endpoints.
 Settings are global desired overrides and apply only on `profile use`; `restart`
 restarts the applied config. `mode` defaults to `source`, preserving Rule mode.
 Use `settings show` for TUN stack, route switches, interface, DNS hijack, secure DNS, MTU,
@@ -80,22 +83,15 @@ Snapshots remain retained, with no automatic pruning in v1.
 
 ## Browser DNS troubleshooting
 
-If GitHub works but Chrome times out on Google or ChatGPT, while `curl` can reach
-those sites, the proxy transport may be healthy and Chrome's resolver path may be
-the problem. First restore `chrome://flags/#enable-quic` to **Default**. Then open
-`chrome://settings/security`, enable **Use secure DNS**, and select **Cloudflare
-(1.1.1.1)** instead of the current service provider. If Chrome asks for a custom
-resolver URL, use:
+If Firefox works after the controller is stopped but Chrome does not, first open
+`chrome://settings/security`. Set **Use secure DNS** to the current service provider
+or turn it off; do not pin Chrome to a public resolver that some campus or mobile
+networks may block. Restore `chrome://flags/#enable-quic` to **Default**, then fully
+restart Chrome. These settings affect Chrome's independent network stack only.
 
-```text
-https://cloudflare-dns.com/dns-query
-```
-
-This browser-level setting continues working when the controller is off and avoids
-changing DNS for every Wi-Fi or hotspot connection. When TUN is active, the encrypted
-DNS connection follows the active Mihomo route. A DNS-leak result and an HTTPS exit-IP
-result measure different paths: Global mode controls the latter but does not replace
-a browser's independently selected encrypted resolver.
+`mmctl rules` reports aggregate rule hit counts by target without exposing rule
+payloads. In `global` or `direct` mode, rules are present but do not participate in
+routing; use `rule` mode before interpreting their counters.
 
 ## Recovery and coexistence
 
@@ -155,12 +151,12 @@ Service, group/node, TUN/mode, logs, external-IP and diagnostic controls use the
 same backend and process lock.
 Operations run in a worker thread so the window remains responsive.
 
-While the GUI is running and this controller's service is active, it performs a
-proxy health check in the background. If the current profile cannot complete the
-HTTPS check within 30 seconds, the controller stops its own service, removes its
-TUN route, and displays a warning that the current node is unavailable. This is a
-fail-open availability safeguard: direct networking may expose the physical exit
-IP after the proxy is turned off. It never starts or stops Clash Verge.
+While the GUI is running and this controller's service is active, it checks two
+independent HTTPS targets in the background. Two consecutive rounds in which both
+targets fail stop this controller's service, remove its TUN route, restore the
+physical resolver and display a warning. This avoids reacting to one blocked health
+site while still providing fail-open recovery from a sustained outage. Direct
+networking may expose the physical exit IP. It never starts or stops Clash Verge.
 
 Save desired settings records them without activating a runtime; Apply selected
 profile saves the editor settings and applies them transactionally. Start/restart

@@ -1,9 +1,35 @@
 from copy import deepcopy
+import ipaddress
 from pathlib import Path
 import yaml
 from .storage import ControllerError
 
 MAX_PROFILE_BYTES = 10 * 1024 * 1024
+
+
+def route_exclusions(config: dict, configured: list[str]) -> list[str]:
+    """Keep proxy transports on the physical route, including after Wi-Fi changes."""
+    result = list(configured)
+    networks = [ipaddress.ip_network(value, strict=False) for value in configured]
+    for proxy in config.get('proxies') or []:
+        if not isinstance(proxy, dict):
+            continue
+        server = proxy.get('server')
+        if not isinstance(server, str):
+            continue
+        try:
+            address = ipaddress.ip_address(server.strip().strip('[]'))
+        except ValueError:
+            # A hostname can change addresses at runtime and cannot safely be
+            # converted into a durable route exclusion here.
+            continue
+        if any(address.version == network.version and address in network
+               for network in networks):
+            continue
+        network = ipaddress.ip_network(f'{address}/{address.max_prefixlen}')
+        result.append(str(network))
+        networks.append(network)
+    return result
 
 
 def parse(data: bytes) -> dict:
@@ -67,7 +93,8 @@ def build(data: bytes, settings, source_dir: Path | None = None) -> dict:
         'dns-hijack': settings.dns_hijack, 'auto-route': settings.auto_route,
         'auto-redirect': settings.auto_redirect, 'strict-route': settings.strict_route,
         'auto-detect-interface': settings.auto_detect_interface and not bool(settings.interface),
-        'mtu': settings.mtu, 'route-exclude-address': settings.route_exclude_address,
+        'mtu': settings.mtu,
+        'route-exclude-address': route_exclusions(result, settings.route_exclude_address),
     }
     if settings.secure_dns:
         # Keep source fake-IP/filter behavior, but never forward captured DNS to

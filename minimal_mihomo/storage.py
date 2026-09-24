@@ -48,6 +48,7 @@ class Paths:
         self.good = self.data / 'runtime/runtime.last-good.yaml'
         self.candidate = self.data / 'runtime/candidate.yaml'
         self.transaction = self.data / 'runtime/transaction.json'
+        self.health = self.data / 'runtime/health.json'
         self.state = self.data / 'runtime/state.json'
         self.profiles = self.data / 'profiles.json'
         self.settings = self.config / 'settings.json'

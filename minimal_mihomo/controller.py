@@ -71,6 +71,7 @@ class Controller:
                 self._health(health_url, config)
             atomic_write(self.paths.good, encode(config))
             write_json(self.paths.state, metadata)
+            self.paths.health.unlink(missing_ok=True)
             self.paths.transaction.unlink()
         except (Exception, KeyboardInterrupt) as error:
             try:
@@ -111,8 +112,10 @@ class Controller:
             raise ControllerError(f'Current proxy node cannot connect within {timeout} seconds.')
 
     def monitor_or_stop(self, timeout=30):
-        """Report an outage without taking down the machine-wide proxy."""
-        if self.service.status().get('ActiveState') != 'active':
+        """Fail open after two consecutive, independently confirmed outages."""
+        service = self.service.status()
+        if service.get('ActiveState') != 'active':
+            self.paths.health.unlink(missing_ok=True)
             return {'active': False, 'stopped': False}
         config = self.config()
         state = read_json(self.paths.state, {})
@@ -137,12 +140,25 @@ class Controller:
                     'https://cp.cloudflare.com/generate_204'):
             try:
                 self._health(url, config, timeout)
+                self.paths.health.unlink(missing_ok=True)
                 return {'active': True, 'stopped': False, 'unhealthy': False}
             except ControllerError:
                 failed.append(url)
-        return {'active': True, 'stopped': False, 'unhealthy': True,
-                'profile': profile or 'current profile', 'node': node,
-                'timeout': timeout, 'failed_targets': failed}
+        previous = read_json(self.paths.health, {})
+        identity = {'pid': int(service.get('MainPID', 0)), 'profile_id': profile_id}
+        failures = previous.get('failures', 0) + 1 if all(
+            previous.get(key) == value for key, value in identity.items()) else 1
+        health = {**identity, 'failures': failures}
+        if failures < 2:
+            write_json(self.paths.health, health)
+            return {'active': True, 'stopped': False, 'unhealthy': True,
+                    'failure_count': failures, 'profile': profile or 'current profile',
+                    'node': node, 'timeout': timeout, 'failed_targets': failed}
+        self.service.action('stop')
+        self.paths.health.unlink(missing_ok=True)
+        return {'active': False, 'stopped': True, 'unhealthy': True,
+                'failure_count': failures, 'profile': profile or 'current profile',
+                'node': node, 'timeout': timeout, 'failed_targets': failed}
 
     def recover(self):
         if not self.paths.transaction.exists():

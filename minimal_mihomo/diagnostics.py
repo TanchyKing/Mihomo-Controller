@@ -39,7 +39,8 @@ def report(controller):
             actual = api.request('/configs')
             tun = actual.get('tun')
             runtime_tun = tun.get('enable') if isinstance(tun, dict) else tun
-            result.update(runtime_tun=runtime_tun, runtime_mode=actual.get('mode'), proxy_groups=api.groups())
+            result.update(runtime_tun=runtime_tun, runtime_mode=actual.get('mode'),
+                          proxy_groups=api.groups(), rule_activity=api.rule_activity())
             result['state_mismatch'] = (runtime_tun is not settings.tun or
                                        actual.get('mode') != (config['mode'] if settings.mode == 'source' else settings.mode))
             if result['state_mismatch']:

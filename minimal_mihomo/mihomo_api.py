@@ -1,5 +1,6 @@
 import json
 import time
+from collections import Counter
 from urllib.parse import quote, urlencode
 from urllib.request import Request, build_opener, ProxyHandler
 from .storage import ControllerError
@@ -28,6 +29,28 @@ class API:
     def groups(self):
         return {name: {'type': item.get('type'), 'now': item.get('now'), 'all': item['all']}
                 for name, item in self.request('/proxies')['proxies'].items() if 'all' in item}
+
+    def rule_activity(self):
+        rules = self.request('/rules').get('rules', [])
+        if not isinstance(rules, list):
+            raise ControllerError('Mihomo returned invalid rule activity data.')
+        hits = Counter()
+        active = []
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            extra = rule.get('extra') if isinstance(rule.get('extra'), dict) else {}
+            count = extra.get('hitCount', 0)
+            count = count if isinstance(count, int) and count >= 0 else 0
+            target = str(rule.get('proxy') or 'unknown')
+            hits[target] += count
+            if count:
+                active.append({'index': rule.get('index'), 'type': rule.get('type'),
+                               'target': target, 'hit_count': count,
+                               'last_hit': extra.get('hitAt')})
+        active.sort(key=lambda item: item['hit_count'], reverse=True)
+        return {'rule_count': len(rules), 'rules_with_hits': len(active),
+                'hits_by_target': dict(hits), 'active_rules': active}
 
     def select(self, group, node):
         groups = self.groups()

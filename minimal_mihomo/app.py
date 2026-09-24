@@ -386,21 +386,27 @@ class Window(QMainWindow):
         self.perform(lambda c: c.monitor_or_stop(30), self.watchdog_result, quiet=True)
 
     def watchdog_result(self, result):
+        if result.get('stopped'):
+            self.watchdog_stopped = True
+            profile = result.get('profile', 'current profile')
+            node = result.get('node') or profile
+            message = (f'Current node “{node}” (profile “{profile}”) failed two consecutive '
+                       'checks against two independent HTTPS targets.\n\n'
+                       'Proxy was turned OFF automatically; TUN and controller DNS were removed '
+                       'so direct networking can recover. Your physical IP may now be visible.')
+            self.banner.setText(message)
+            self.banner.setStyleSheet('padding: 12px; background: #8c302e; color: white; border-radius: 6px;')
+            QMessageBox.warning(self, 'Proxy unavailable — direct networking restored', message)
+            return
         if not result.get('unhealthy'):
             self.watchdog_stopped = False
             return
-        if self.watchdog_stopped:
-            return
-        self.watchdog_stopped = True
         profile = result.get('profile', 'current profile')
         node = result.get('node') or profile
-        seconds = result.get('timeout', 30)
-        message = (f'Current node “{node}” (profile “{profile}”) failed two independent '
-                   f'connectivity checks (up to {seconds} seconds each).\n\n'
-                   'The proxy remains ON. Check the node or switch profiles if the outage persists.')
+        message = (f'Current node “{node}” (profile “{profile}”) failed the first full '
+                   'connectivity check. It will be checked once more before fail-open activates.')
         self.banner.setText(message)
-        self.banner.setStyleSheet('padding: 12px; background: #8c302e; color: white; border-radius: 6px;')
-        QMessageBox.warning(self, 'Proxy connectivity warning', message)
+        self.banner.setStyleSheet('padding: 12px; background: #765116; color: white; border-radius: 6px;')
 
     def group_changed(self, name):
         item = self.group_data.get(name, {})
